@@ -11,6 +11,7 @@ public class GameFlow : NetworkBehaviour
     public Rect winArea;
     public InfoDock infoPanel;
     public Light[] winLights;
+    public Setup setup;
 
     // readonly
 
@@ -29,11 +30,6 @@ public class GameFlow : NetworkBehaviour
 
     // overrides
 
-    public override void OnStartClient()
-    {
-        _sounds = GetComponent<Sounds>();
-    }
-
     void Awake()
     {
         _debug = FindObjectOfType<DebugDesk>();
@@ -45,21 +41,16 @@ public class GameFlow : NetworkBehaviour
         }
 
         Application.logMessageReceived += HandleLog;
+    }
 
-        /*
-        NetworkManager networkManager = FindObjectOfType<NetworkManager>();
+    void Start()
+    {
+        setup.gameObject.SetActive(false);
+    }
 
-        string[] args = System.Environment.GetCommandLineArgs();
-        foreach (string arg in args)
-        {
-            _debug.print($"{arg}");
-            if (arg == "--server")
-            {
-                networkManager.StartServer();
-                FindObjectOfType<NetworkManagerHUD>().showGUI = false;
-                _debug.print("server started");
-            }
-        }*/
+    public override void OnStartClient()
+    {
+        _sounds = GetComponent<Sounds>();
     }
 
     void Update()
@@ -78,26 +69,27 @@ public class GameFlow : NetworkBehaviour
         if (players.Length == 0)
             return;
 
-        bool isAnyoneIsStillInside = false;
+        bool isSomeoneIsStillInside = false;
         foreach (Transform player in players)
         {
             Vector2 playerPositionOnTheFloor = new Vector2(player.position.x, player.position.z);
             if (!winArea.Contains(playerPositionOnTheFloor))
             {
-                isAnyoneIsStillInside = true;
+                isSomeoneIsStillInside = true;
                 break;
             }
         }
 
-        if (!isAnyoneIsStillInside)
+        if (!isSomeoneIsStillInside)
         {
             _isFinished = true;
-            Win();
+            End();
         }
     }
 
     // public methods
 
+    // server-side
     public void CaptureKey(Key aKey)
     {
         string keyName = aKey.name;
@@ -113,6 +105,7 @@ public class GameFlow : NetworkBehaviour
         RpcOpenDoor(doorName);
     }
 
+    // server-side
     public void HitPlayer(Transform aPlayer, float aWeight)
     {
         if (_isFinished)
@@ -126,12 +119,27 @@ public class GameFlow : NetworkBehaviour
 
         if (!player.isAlive)
         {
-            _isFinished = true;
-            Lost();
+            player.respawn();
         }
     }
 
     // internal methods
+
+    // server-side
+    void End()
+    {
+        if (!isServer)
+            return;
+
+        RpcLightsOn();
+        RpcEndGame();
+    }
+
+    // client-side
+    void ShowCompleteMessage()
+    {
+        infoPanel.showMessage("Completed!");
+    }
 
     void OpenDoor(GameObject aDoor)
     {
@@ -142,46 +150,6 @@ public class GameFlow : NetworkBehaviour
     void DisplayKeyOnInfoPanel(string aName)
     {
         infoPanel.AcquireKey(aName);
-    }
-
-    void Lost()
-    {
-        if (!isServer)
-            return;
-
-        // disable players
-        PlayerAvatar[] players = FindObjectsOfType<PlayerAvatar>().Where(player => player.isAlive).ToArray();
-        foreach (var player in players)
-        {
-            player.RpcDisable();
-        }
-
-        ShowLostMessage();
-
-        RpcEndGame("Lost");
-    }
-
-    void Win()
-    {
-        if (!isServer)
-            return;
-
-        ShowWinMessage();
-
-        RpcLightsOn();
-        RpcEndGame("Win");
-    }
-
-    void ShowLostMessage()
-    {
-        infoPanel.messageCenter.GetComponentInChildren<Text>().text = "Game over...";
-        infoPanel.messageCenter.SetActive(true);
-    }
-
-    void ShowWinMessage()
-    {
-        infoPanel.messageCenter.GetComponentInChildren<Text>().text = "Completed!";
-        infoPanel.messageCenter.SetActive(true);
     }
 
     void Exit()
@@ -240,12 +208,12 @@ public class GameFlow : NetworkBehaviour
     }
 
     [ClientRpc]
-    void RpcEndGame(string aResult)
+    void RpcEndGame()
     {
         if (_logGeneral != null)
-            _logGeneral.add($"finished\t{aResult}");
+            _logGeneral.add($"finished");
 
-        Invoke($"Show{aResult}Message", 2);
+        Invoke("ShowCompleteMessage", 2);
         Invoke("Exit", 4);
     }
 }

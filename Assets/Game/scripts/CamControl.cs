@@ -20,7 +20,7 @@ public class CamControl : MonoBehaviour
             transform.Rotate(transform.up, -Time.deltaTime * 25);
         if (Input.GetKey(KeyCode.O))
             transform.Rotate(transform.up, Time.deltaTime * 25);
-        if (Input.GetKeyDown(KeyCode.Tab))
+        if (Input.GetKeyDown(KeyCode.Tab) && transform.parent)
             transform.Rotate(transform.parent.up, 180, Space.World);
         if (Input.GetKeyDown(KeyCode.Return))
         {

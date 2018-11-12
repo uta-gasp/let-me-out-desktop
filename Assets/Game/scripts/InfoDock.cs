@@ -9,13 +9,18 @@ public class InfoDock : MonoBehaviour
 
     public Text healthPercentage;
     public RawImage healthImage;
-    public GameObject messageCenter;
+    public GameObject message;
+    public Text notification;
 
     // internal 
 
     DebugDesk _debug;           // external
     Canvas _infoDockOverlay;    // internal
     RawImage[] _keyInfo;        // external
+    Text _message;              // child-internal
+
+    string _invokedMessage;
+    float _invokedDuration;
 
     // overrides
 
@@ -25,6 +30,9 @@ public class InfoDock : MonoBehaviour
 
         _infoDockOverlay = GetComponent<Canvas>();
         _infoDockOverlay.enabled = false;
+
+        _message = message.GetComponentInChildren<Text>();
+        message.SetActive(false);
 
         _keyInfo = FindObjectsOfType<RawImage>()
             .Where(image => image.tag == "key-info")
@@ -53,7 +61,54 @@ public class InfoDock : MonoBehaviour
         healthImage.uvRect = new Rect(0.5f * (1f - aHealth), healthImage.uvRect.y, healthImage.uvRect.width, healthImage.uvRect.height);
     }
 
+    public void showMessage(string aMessage, float aDuration = -1, float aDelay = 0f)
+    {
+        if (aDelay > 0)
+        {
+            _invokedMessage = aMessage;
+            _invokedDuration = aDuration;
+            Invoke("ShowMessageInvoked", aDelay);
+        }
+        else
+        {
+            _message.text = aMessage;
+            message.SetActive(true);
+
+            if (aDuration > 0)
+            {
+                Invoke("hideMessage", aDuration);
+            }
+        }
+    }
+
+    public void hideMessage()
+    {
+        _message.text = "";
+        message.SetActive(false);
+    }
+
+    public void notify(string aNotification)
+    {
+        notification.text = aNotification;
+    }
+
+    public void clearNotification()
+    {
+        notification.text = "";
+    }
+
     // internal methods
+
+    private void ShowMessageInvoked()
+    {
+        _message.text = _invokedMessage;
+        message.SetActive(true);
+
+        if (_invokedDuration > 0)
+        {
+            Invoke("hideMessage", _invokedDuration);
+        }
+    }
 
     void onGameStart(object sender, EventArgs e)
     {

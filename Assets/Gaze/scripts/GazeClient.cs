@@ -72,14 +72,14 @@ public class GazeClient : NetworkBehaviour
 
     public override void OnStartClient()
     {
-        gazeControls.SetActive(true);
+        var setup = FindObjectOfType<GameFlow>().setup;
 
         _smoother = new Smoother<RawPoint>();   // original
         _smoother.saccadeThreshold = 30;        // 30
         _smoother.timeWindow = 100;             // 150
         _smoother.dampFixation = 250;           // 700
 
-        _simulate = simulate || (Environment.UserName == "csolsp" && Screen.currentResolution.width == 1920);
+        _simulate = simulate || setup.mode == Setup.Mode.HeadGaze || (Environment.UserName == "csolsp" && Screen.currentResolution.width == 1920);
 
         if (_simulate)
         {
@@ -90,6 +90,8 @@ public class GazeClient : NetworkBehaviour
             _simulator.Initialize();
             return;
         }
+
+        gazeControls.SetActive(true);
 
         _ws = new WebSocketSharp.WebSocket("ws://localhost:8086/");
         _ws.OnOpen += (sender, e) =>

@@ -25,15 +25,14 @@ public class PlayerAvatar : NetworkBehaviour
     GameObject _avatar;                 // instantiated
     Animator _animator;                 // _avatar internal
     Light _light;                       // child-internal
-    CharacterController _character;     // internal
-    FirstPersonController _fps;         // internal
+    FirstPersonController _fpc;         // internal
     InfoDock _infoPanel;                // external
     Logger.LogDomain _log;
 
     string _name;
     bool _isWalking = false;
 
-    [SyncVar(hook = "onChangeHealth")]
+    [SyncVar(hook = "OnChangeHealth")]
     float _health = 1f;
 
     float _fallSpeed = 1f;
@@ -47,10 +46,12 @@ public class PlayerAvatar : NetworkBehaviour
         return _health;
     }
 
-    [ClientRpc]
-    public void RpcDisable()
+    // server-side
+    public void respawn()
     {
-        _fps.enabled = false;
+        Invoke("RestoreProps", 1.5f);
+
+        RpcRespawn();
     }
 
     public static PlayerAvatar getLocalPlayer()
@@ -65,8 +66,7 @@ public class PlayerAvatar : NetworkBehaviour
         _debug = FindObjectOfType<DebugDesk>();
 
         _light = GetComponentInChildren<Light>();
-        _character = GetComponent<CharacterController>();
-        _fps = GetComponent<FirstPersonController>();
+        _fpc = GetComponent<FirstPersonController>();
         _infoPanel = FindObjectOfType<InfoDock>();
 
         int index;
@@ -93,20 +93,20 @@ public class PlayerAvatar : NetworkBehaviour
         if (!isLocalPlayer)
             return;
 
-        if (!_isWalking && _fps.isWalking)
+        if (!_isWalking && _fpc.isWalking)
         {
             if (_log != null)
                 _log.add("move");
             //_animator.SetBool("isWalking", true);
         }
-        else if (_isWalking && !_fps.isWalking)
+        else if (_isWalking && !_fpc.isWalking)
         {
             if (_log != null)
                 _log.add("stop");
             //_animator.SetBool("isWalking", false);
         }
 
-        _isWalking = _fps.isWalking;
+        _isWalking = _fpc.isWalking;
     }
 
     //internal mehtods
@@ -127,32 +127,69 @@ public class PlayerAvatar : NetworkBehaviour
         _animator = _avatar.GetComponent<Animator>();
     }
 
+    // client-side
     void Die()
     {
+        if (!isLocalPlayer)
+            return;
+
         if (_log != null)
             _log.add("dead");
 
-        _fps.enabled = false;
+        _fpc.enabled = false;
         _light.enabled = false;
-
-        Invoke("FallDown", Time.deltaTime);
     }
 
-    void FallDown()
+    [ClientRpc]
+    void RpcRespawn()
     {
-        if (_character == null)
-            return;
-
-        if (_character.transform.eulerAngles.z < 90 || _character.transform.eulerAngles.z > 270)
+        if (isLocalPlayer)
         {
-            _character.transform.Rotate(_fallAxe, _fallSpeed);
-            _fallSpeed *= 1.05f;
+            _infoPanel.showMessage("Respawning...", 2.0f, 0.5f);
 
-            Invoke("FallDown", Time.deltaTime);
+            Invoke("RespawnAtOrigin", 1.5f);
+            Invoke("EnableAfterRespawn", 3);
+        }
+        else
+        {
+            _infoPanel.notify("Respawning the partner...");
+            Invoke("ClearNotification", 3);
         }
     }
 
-    void onChangeHealth(float aValue)
+    // client-side
+    void RespawnAtOrigin()
+    {
+        NetworkStartPosition[] spawnPoints = FindObjectsOfType<NetworkStartPosition>().ToArray();
+        int randomSpawnPointIndex = (int)Mathf.Round(UnityEngine.Random.Range(0, spawnPoints.Length - 1));
+        NetworkStartPosition spawnPoint = spawnPoints[randomSpawnPointIndex];
+
+        transform.position = spawnPoint.transform.position;
+    }
+
+    // client-side
+    void EnableAfterRespawn()
+    {
+        _fpc.enabled = true;
+        _light.enabled = true;
+
+        _infoPanel.hideMessage();
+    }
+
+    void ClearNotification()
+    {
+        _infoPanel.clearNotification();
+    }
+
+    // server-side
+    void RestoreProps()
+    {
+        _health = 1f;
+    }
+
+    // callbacks
+
+    void OnChangeHealth(float aValue)
     {
         if (aValue == 0f)
         {
