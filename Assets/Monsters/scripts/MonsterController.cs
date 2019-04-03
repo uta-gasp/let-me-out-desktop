@@ -144,6 +144,7 @@ public class MonsterController : NetworkBehaviour
 
     // internal methods
 
+    // server-side
     void Unfreeze()
     {
         _log.add("alive");

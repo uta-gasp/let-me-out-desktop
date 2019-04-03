@@ -40,7 +40,10 @@ public class GameFlow : NetworkBehaviour
             _logErrors = logger.register("error");
         }
 
-        Application.logMessageReceived += HandleLog;
+        foreach (Light light in winLights)
+        {
+            light.enabled = false;
+        }
     }
 
     void Start()
@@ -51,6 +54,13 @@ public class GameFlow : NetworkBehaviour
     public override void OnStartClient()
     {
         _sounds = GetComponent<Sounds>();
+        base.OnStartClient();
+    }
+
+    public override void OnStartServer()
+    {
+        Application.logMessageReceived += HandleLog;
+        base.OnStartServer();
     }
 
     void Update()
@@ -131,6 +141,9 @@ public class GameFlow : NetworkBehaviour
         if (!isServer)
             return;
 
+        if (_logGeneral != null)
+            _logGeneral.add("finished");
+
         RpcLightsOn();
         RpcEndGame();
     }
@@ -143,8 +156,11 @@ public class GameFlow : NetworkBehaviour
 
     void OpenDoor(GameObject aDoor)
     {
-        aDoor.GetComponent<BoxCollider>().enabled = false;
+        aDoor.GetComponent<BoxCollider>().isTrigger = true;
         aDoor.GetComponent<Animator>().SetBool("open", true);
+
+        if (_logGeneral != null)
+            _logGeneral.add($"open-door\t{aDoor.name}");
     }
 
     void DisplayKeyOnInfoPanel(string aName)
@@ -182,9 +198,6 @@ public class GameFlow : NetworkBehaviour
     [ClientRpc]
     void RpcOpenDoor(string aName)
     {
-        if (_logGeneral != null)
-            _logGeneral.add($"open-door\t{aName}");
-
         GameObject door = FindObjectsOfType<GameObject>().Single(obj => obj.tag == "door" && obj.name == aName);
         OpenDoor(door);
     }
@@ -204,6 +217,7 @@ public class GameFlow : NetworkBehaviour
         foreach (Light light in winLights)
         {
             light.gameObject.SetActive(true);
+            light.enabled = true;
         }
     }
 
@@ -211,7 +225,7 @@ public class GameFlow : NetworkBehaviour
     void RpcEndGame()
     {
         if (_logGeneral != null)
-            _logGeneral.add($"finished");
+            _logGeneral.add("finished");
 
         Invoke("ShowCompleteMessage", 2);
         Invoke("Exit", 4);
